@@ -82,7 +82,7 @@ class MarlinEngine:
                 if seg_duration > 0.75:
                     await self._busy_wait(seg_duration)
                 elif seg_duration > 0:
-                    interrupted = await self._sleep_with_interrupt(min(0.2, seg_duration))
+                    interrupted = await self._sleep_with_interrupt(seg_duration)
                     if interrupted:
                         await self.publish_message("echo:busy: interrupted")
         else:
@@ -92,7 +92,7 @@ class MarlinEngine:
             if result.duration_s > 0.75:
                 await self._busy_wait(result.duration_s)
             elif result.duration_s > 0:
-                interrupted = await self._sleep_with_interrupt(min(0.2, result.duration_s))
+                interrupted = await self._sleep_with_interrupt(result.duration_s)
                 if interrupted:
                     await self.publish_message("echo:busy: interrupted")
 

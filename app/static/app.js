@@ -30,6 +30,7 @@ const meshVisuals = new Map();
 const meshMeta = new Map();
 let lastState = null;
 let activeMotion = null;
+const pendingMotions = [];
 let selectedMeshName = null;
 
 const scene = new THREE.Scene();
@@ -174,6 +175,11 @@ function mapAAxisToSceneRotation(aDeg) {
   return -aDeg;
 }
 
+function setToolheadPose(x, y, z, a) {
+  toolhead.position.set(x, y, z);
+  toolhead.rotation.z = THREE.MathUtils.degToRad(mapAAxisToSceneRotation(a));
+}
+
 function setStatus(state) {
   els.status.textContent = JSON.stringify(state, null, 2);
 }
@@ -221,8 +227,10 @@ function applyState(state) {
   lastState = state;
   const p = state.position;
 
-  toolhead.position.set(p.X, p.Y, p.Z);
-  toolhead.rotation.z = THREE.MathUtils.degToRad(mapAAxisToSceneRotation(p.A));
+  const motionInFlight = activeMotion !== null || pendingMotions.length > 0;
+  if (!motionInFlight) {
+    setToolheadPose(p.X, p.Y, p.Z, p.A);
+  }
 
   updatePath(state.path);
   setStatus(state);
@@ -257,13 +265,39 @@ function displacementFromProfile(profile, t) {
 }
 
 function startMotion(motion) {
-  activeMotion = {
-    motion,
-    startedAtMs: performance.now(),
-  };
+  pendingMotions.push(motion);
+  if (!activeMotion) {
+    activateNextMotion(performance.now());
+  }
+}
+
+function activateNextMotion(nowMs) {
+  while (pendingMotions.length > 0) {
+    const nextMotion = pendingMotions.shift();
+    const duration = Number(nextMotion?.duration_s || 0);
+    if (!Number.isFinite(duration) || duration <= 1e-6) {
+      const end = nextMotion?.end;
+      if (end) {
+        setToolheadPose(end.X, end.Y, end.Z, end.A);
+      }
+      continue;
+    }
+
+    activeMotion = {
+      motion: nextMotion,
+      startedAtMs: nowMs,
+    };
+    return;
+  }
+
+  activeMotion = null;
 }
 
 function updateMotion(nowMs) {
+  if (!activeMotion && pendingMotions.length > 0) {
+    activateNextMotion(nowMs);
+  }
+
   if (!activeMotion) {
     return;
   }
@@ -294,11 +328,14 @@ function updateMotion(nowMs) {
     a += Math.sign(da) * rotaryDisp;
   }
 
-  toolhead.position.set(x, y, z);
-  toolhead.rotation.z = THREE.MathUtils.degToRad(mapAAxisToSceneRotation(a));
+  setToolheadPose(x, y, z, a);
 
   if (elapsed >= (motion.duration_s || 0)) {
+    if (motion.end) {
+      setToolheadPose(motion.end.X, motion.end.Y, motion.end.Z, motion.end.A);
+    }
     activeMotion = null;
+    activateNextMotion(nowMs);
   }
 }
 
