@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPM Sim</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <main class="shell">
+      <section class="panel control-panel">
+        <h1>FPM Sim</h1>
+        <p class="subtitle">Marlin-style 4-axis printer simulator (X, Y, Z, A)</p>
+
+        <div class="block">
+          <h2>Send G-code</h2>
+          <textarea id="gcodeInput" spellcheck="false">
+</textarea>
+          <div class="row">
+            <button id="runBtn">Queue Block</button>
+            <button id="clearPathBtn" class="ghost">Clear Path</button>
+          </div>
+        </div>
+
+        <div class="block">
+          <h2>Mesh Targets</h2>
+          <label class="upload">
+            <input id="meshInput" type="file" accept=".stl,.obj,.ply" />
+            <span>Import mesh for probing</span>
+          </label>
+          <ul id="meshList"></ul>
+
+          <div class="mesh-controls">
+            <label class="mesh-label" for="selectedMesh">Selected mesh</label>
+            <select id="selectedMesh"></select>
+
+            <div class="mesh-grid">
+              <div class="mesh-row">
+                <label>X <input id="meshTx" type="number" step="0.1" value="0" /></label>
+                <label>Y <input id="meshTy" type="number" step="0.1" value="0" /></label>
+                <label>Z <input id="meshTz" type="number" step="0.1" value="0" /></label>
+              </div>
+
+              <div class="mesh-row">
+                <label>Rx <input id="meshRx" type="number" step="1" value="0" /></label>
+                <label>Ry <input id="meshRy" type="number" step="1" value="0" /></label>
+                <label>Rz <input id="meshRz" type="number" step="1" value="0" /></label>
+              </div>
+            </div>
+
+            <div class="row">
+              <button id="applyMeshTranslateBtn" class="ghost">Translate</button>
+              <button id="applyMeshRotateBtn" class="ghost">Rotate</button>
+              <button id="deleteMeshBtn" class="ghost">Delete Mesh</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <h2>Status</h2>
+          <pre id="status"></pre>
+        </div>
+      </section>
+
+      <section class="panel render-panel">
+        <div id="renderRoot"></div>
+        <div class="floating-card">
+          <h3>Serial Monitor</h3>
+          <pre id="serial"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>
