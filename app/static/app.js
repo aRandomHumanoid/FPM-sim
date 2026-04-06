@@ -31,6 +31,7 @@ const meshMeta = new Map();
 let lastState = null;
 let activeMotion = null;
 const pendingMotions = [];
+const MIN_ANIM_DURATION_S = 1 / 90;
 let selectedMeshName = null;
 
 const scene = new THREE.Scene();
@@ -275,7 +276,7 @@ function activateNextMotion(nowMs) {
   while (pendingMotions.length > 0) {
     const nextMotion = pendingMotions.shift();
     const duration = Number(nextMotion?.duration_s || 0);
-    if (!Number.isFinite(duration) || duration <= 1e-6) {
+    if (!Number.isFinite(duration) || duration <= MIN_ANIM_DURATION_S) {
       const end = nextMotion?.end;
       if (end) {
         setToolheadPose(end.X, end.Y, end.Z, end.A);
@@ -298,44 +299,49 @@ function updateMotion(nowMs) {
     activateNextMotion(nowMs);
   }
 
-  if (!activeMotion) {
-    return;
-  }
+  while (activeMotion) {
+    const { motion, startedAtMs } = activeMotion;
+    const durationS = Number(motion.duration_s || 0);
+    const durationMs = Math.max(0, durationS * 1000);
+    const elapsedMs = nowMs - startedAtMs;
 
-  const { motion, startedAtMs } = activeMotion;
-  const elapsed = (nowMs - startedAtMs) / 1000;
-  const t = Math.max(0, Math.min(elapsed, motion.duration_s || 0));
+    if (durationMs <= 1e-6 || elapsedMs >= durationMs) {
+      if (motion.end) {
+        setToolheadPose(motion.end.X, motion.end.Y, motion.end.Z, motion.end.A);
+      }
 
-  const start = motion.start;
-  const linear = motion.linear || {};
-  const rotary = motion.rotary || {};
-
-  const linearDisp = displacementFromProfile(linear, t);
-  const linearDistance = linear.distance || 0;
-  let x = start.X;
-  let y = start.Y;
-  let z = start.Z;
-  if (linearDistance > 1e-9) {
-    x += (linear.dx / linearDistance) * linearDisp;
-    y += (linear.dy / linearDistance) * linearDisp;
-    z += (linear.dz / linearDistance) * linearDisp;
-  }
-
-  const rotaryDisp = displacementFromProfile(rotary, t);
-  const da = rotary.da || 0;
-  let a = start.A;
-  if (Math.abs(da) > 1e-9) {
-    a += Math.sign(da) * rotaryDisp;
-  }
-
-  setToolheadPose(x, y, z, a);
-
-  if (elapsed >= (motion.duration_s || 0)) {
-    if (motion.end) {
-      setToolheadPose(motion.end.X, motion.end.Y, motion.end.Z, motion.end.A);
+      // Preserve scheduled timing continuity so multiple short segments can catch up in one frame.
+      const nextStartAtMs = startedAtMs + durationMs;
+      activeMotion = null;
+      activateNextMotion(nextStartAtMs);
+      continue;
     }
-    activeMotion = null;
-    activateNextMotion(nowMs);
+
+    const t = Math.max(0, Math.min(elapsedMs / 1000, durationS));
+    const start = motion.start;
+    const linear = motion.linear || {};
+    const rotary = motion.rotary || {};
+
+    const linearDisp = displacementFromProfile(linear, t);
+    const linearDistance = linear.distance || 0;
+    let x = start.X;
+    let y = start.Y;
+    let z = start.Z;
+    if (linearDistance > 1e-9) {
+      x += (linear.dx / linearDistance) * linearDisp;
+      y += (linear.dy / linearDistance) * linearDisp;
+      z += (linear.dz / linearDistance) * linearDisp;
+    }
+
+    const rotaryDisp = displacementFromProfile(rotary, t);
+    const da = rotary.da || 0;
+    let a = start.A;
+    if (Math.abs(da) > 1e-9) {
+      a += Math.sign(da) * rotaryDisp;
+    }
+
+    setToolheadPose(x, y, z, a);
+    break;
   }
 }
 
