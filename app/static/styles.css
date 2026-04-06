@@ -117,6 +117,11 @@ button.ghost {
   color: var(--muted);
 }
 
+button.warn {
+  border-color: rgba(255, 209, 102, 0.45);
+  color: var(--warn);
+}
+
 .upload {
   display: inline-block;
   border: 1px dashed var(--line);

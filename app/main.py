@@ -51,6 +51,15 @@ class SimulatorRuntime:
             publish_motion=self.broadcast_motion,
         )
 
+    def _make_engine(self) -> MarlinEngine:
+        return MarlinEngine(
+            state=self.state,
+            probe_world=self.probe_world,
+            publish_state=self.broadcast_state,
+            publish_message=self.broadcast_serial,
+            publish_motion=self.broadcast_motion,
+        )
+
     async def start(self) -> None:
         if self.worker_task is None or self.worker_task.done():
             self.worker_task = asyncio.create_task(self._worker(), name="gcode-worker")
@@ -77,6 +86,25 @@ class SimulatorRuntime:
 
     async def enqueue_line(self, line: str) -> None:
         await self.queue.put(line)
+
+    async def reset_printer(self) -> int:
+        cleared_queue = self.queue.qsize()
+        self.queue = asyncio.Queue()
+
+        if self.worker_task is not None:
+            self.worker_task.cancel()
+            try:
+                await self.worker_task
+            except asyncio.CancelledError:
+                pass
+            self.worker_task = None
+
+        self.state = PrinterState()
+        self.engine = self._make_engine()
+        await self.start()
+        await self.broadcast_serial(f"echo:printer reset ({cleared_queue} queued command(s) cleared)")
+        await self.broadcast_state(self.state.snapshot())
+        return cleared_queue
 
     def add_serial_sink(self, sink: SerialSink) -> None:
         self.serial_sinks.add(sink)
@@ -240,6 +268,16 @@ async def clear_path() -> dict:
     runtime.state.path.clear()
     await runtime.broadcast_state(runtime.state.snapshot())
     return {"ok": True}
+
+
+@app.post("/api/printer/reset")
+async def reset_printer() -> dict:
+    cleared_queue = await runtime.reset_printer()
+    return {
+        "ok": True,
+        "cleared_queue": cleared_queue,
+        "state": runtime.state.snapshot(),
+    }
 
 
 @app.websocket("/ws")

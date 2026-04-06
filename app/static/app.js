@@ -8,6 +8,7 @@ const els = {
   gcodeInput: document.getElementById("gcodeInput"),
   runBtn: document.getElementById("runBtn"),
   clearPathBtn: document.getElementById("clearPathBtn"),
+  resetPrinterBtn: document.getElementById("resetPrinterBtn"),
   meshInput: document.getElementById("meshInput"),
   meshList: document.getElementById("meshList"),
   selectedMesh: document.getElementById("selectedMesh"),
@@ -183,6 +184,11 @@ function setToolheadPose(x, y, z, a) {
 
 function setStatus(state) {
   els.status.textContent = JSON.stringify(state, null, 2);
+}
+
+function clearPendingMotions() {
+  activeMotion = null;
+  pendingMotions.length = 0;
 }
 
 function appendSerial(line) {
@@ -652,7 +658,23 @@ async function clearMovementLines() {
   appendSerial("host:path cleared");
 }
 
+async function resetPrinter() {
+  const response = await fetch("/api/printer/reset", { method: "POST" });
+  if (!response.ok) {
+    appendSerial("host:error unable to reset printer");
+    return;
+  }
+
+  const payload = await response.json();
+  clearPendingMotions();
+  if (payload?.state) {
+    applyState(payload.state);
+  }
+  appendSerial(`host:printer reset (cleared ${payload.cleared_queue ?? 0} queued line(s))`);
+}
+
 els.clearPathBtn?.addEventListener("click", clearMovementLines);
+els.resetPrinterBtn?.addEventListener("click", resetPrinter);
 
 els.meshInput.addEventListener("change", async (event) => {
   const [file] = event.target.files;
